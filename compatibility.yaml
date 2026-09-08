@@ -1,0 +1,32 @@
+# Матрица совместимости плагинов NetBox.
+# Проверяется раннером: python -m netbox_compat --config compatibility.yaml
+#
+# netbox.ref и plugins[].ref — любой git-ref: тег, ветка или коммит.
+# plugins[].package — имя модуля, попадающее в PLUGINS в configuration.py
+# (атрибут `name` в PluginConfig плагина, не имя дистрибутива на PyPI).
+
+# Целевая версия NetBox, против которой проверяются все плагины.
+netbox:
+  repository: https://github.com/netbox-community/netbox.git
+  ref: v4.4.10
+
+plugins:
+  - name: NetBox BGP
+    repository: https://github.com/netbox-community/netbox-bgp.git
+    ref: v0.19.0
+    package: netbox_bgp
+
+  - name: NetBox Inventory
+    repository: https://github.com/ArnesSI/netbox-inventory.git
+    ref: v2.6.1
+    package: netbox_inventory
+
+  - name: NetBox Security
+    repository: https://github.com/andy-shady-org/netbox-security.git
+    ref: v1.6.1
+    package: netbox_security
+
+  - name: NetBox Custom Objects
+    repository: https://github.com/netboxlabs/netbox-custom-objects.git
+    ref: v0.6.1
+    package: netbox_custom_objects
