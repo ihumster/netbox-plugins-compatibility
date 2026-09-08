@@ -15,6 +15,10 @@ on:
     # Понедельник, 04:17 UTC — смещено от :00, чтобы не попадать в пик очередей.
     - cron: "17 4 * * 1"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
