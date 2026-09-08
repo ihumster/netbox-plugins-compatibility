@@ -13,22 +13,22 @@ netbox:
 plugins:
   - name: NetBox BGP
     repository: https://github.com/netbox-community/netbox-bgp.git
-    ref: v0.19.0
+    ref: v0.17.0
     package: netbox_bgp
 
   - name: NetBox Inventory
     repository: https://github.com/ArnesSI/netbox-inventory.git
-    ref: v2.6.1
+    ref: v2.4.1
     package: netbox_inventory
 
   - name: NetBox Security
     repository: https://github.com/andy-shady-org/netbox-security.git
-    ref: v1.6.1
+    ref: v1.3.3
     package: netbox_security
 
   - name: NetBox Custom Objects
     repository: https://github.com/netboxlabs/netbox-custom-objects.git
-    ref: v0.6.1
+    ref: v0.4.10
     package: netbox_custom_objects
 
   - name: NetBox Lifecycle
