@@ -40,6 +40,17 @@ $ python -m netbox_compat --validate-only
 ERROR  invalid config: plugins[1].package: duplicate 'netbox_bgp' (also plugins[0])
 ```
 
+## Первый запуск в новом репозитории
+
+Actions должны быть включены **до** первого push'а с workflow-файлами:
+`Settings` → `Actions` → `General` → `Allow all actions and reusable workflows`.
+
+GitHub регистрирует workflow в момент push-события. Если Actions были выключены,
+когда файлы попали в репозиторий, вкладка `Actions` останется пустой, а API
+отдаст 404 — файлы в git есть, в реестре Actions их нет. Включения задним числом
+недостаточно: нужен новый push в дефолтную ветку, чтобы событие породилось
+заново. Переименование ветки для этого не годится, оно push-события не создаёт.
+
 ## Локальный запуск
 
 Нужны Python 3.12+ (для NetBox 4.6+; для 4.4 достаточно 3.10+), Postgres,
