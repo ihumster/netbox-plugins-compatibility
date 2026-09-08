@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import secrets
 import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,26 +57,38 @@ class SourceCache:
     def _clone_path(self, repository: str) -> Path:
         return self.root / slugify(repository.rsplit("/", 1)[-1].removesuffix(".git"))
 
-    def checkout(self, spec: NetBoxSpec, dest: Path, log_path: Path) -> CommandResult:
-        clone = self._clone_path(spec.repository)
+    def ensure(self, repository: str, log_path: Path) -> CommandResult | None:
+        """Склонировать репозиторий в кэш либо обновить его. None — уже готов."""
+        clone = self._clone_path(repository)
         env = clean_env()
         if not (clone / ".git").exists():
-            result = run_logged(
-                ["git", "clone", "--quiet", spec.repository, str(clone)],
-                log_path,
-                env=env,
-            )
-            if not result.ok:
-                return result
-        else:
-            run_logged(["git", "-C", str(clone), "fetch", "--quiet", "--tags", "--prune"], log_path, env=env)
+            return run_logged(["git", "clone", "--quiet", repository, str(clone)], log_path, env=env)
+        run_logged(["git", "-C", str(clone), "fetch", "--quiet", "--tags", "--prune"], log_path, env=env)
+        return None
+
+    def show(self, repository: str, ref: str, path: str) -> str | None:
+        """Прочитать один файл из ref'а без checkout'а."""
+        clone = self._clone_path(repository)
+        result = subprocess.run(
+            ["git", "-C", str(clone), "show", f"{ref}:{path}"],
+            capture_output=True,
+            text=True,
+            env=clean_env(),
+        )
+        return result.stdout if result.returncode == 0 else None
+
+    def checkout(self, spec: NetBoxSpec, dest: Path, log_path: Path) -> CommandResult:
+        clone = self._clone_path(spec.repository)
+        prepared = self.ensure(spec.repository, log_path)
+        if prepared is not None and not prepared.ok:
+            return prepared
 
         if dest.exists():
             shutil.rmtree(dest)
         return run_logged(
             ["git", "-C", str(clone), "worktree", "add", "--detach", "--force", str(dest), spec.ref],
             log_path,
-            env=env,
+            env=clean_env(),
         )
 
 

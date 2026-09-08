@@ -87,6 +87,9 @@ def render_markdown(report: dict[str, Any]) -> str:
                 + " | ".join(cells) + " |"
             )
 
+    if report.get("resolution"):
+        lines += _render_resolution(report["resolution"])
+
     failures = [
         (target, stage)
         for target in report["targets"]
@@ -127,3 +130,40 @@ def write_job_summary(report: dict[str, Any]) -> Path | None:
     with path.open("a", encoding="utf-8") as fh:
         fh.write(render_markdown(report))
     return path
+
+
+def _render_resolution(resolution: dict[str, Any]) -> list[str]:
+    """Таблица найденных ref'ов для режима --resolve."""
+    totals = resolution["totals"]
+    lines = [
+        "",
+        "## Resolution",
+        "",
+        f"Против NetBox `{resolution.get('netbox_version') or 'unknown'}`: "
+        f"{totals['resolved']}/{totals['plugins']} плагинов разрешены "
+        f"(`--max-attempts {resolution['max_attempts']}`).",
+        "",
+        "| Plugin | Configured | Resolved | Rejected by declared bounds | Attempted | Note |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for entry in resolution["plugins"]:
+        resolved = f"`{entry['resolved_ref']}`" if entry["resolved_ref"] else "—"
+        icon = "✅" if entry["status"] == "resolved" else "❌"
+        note = entry.get("detail", "")
+        if not note and entry["resolved_ref"] == entry["configured_ref"]:
+            note = "уже актуален"
+        lines.append(
+            f"| {entry['name']} | `{entry['configured_ref']}` | {icon} {resolved} | "
+            f"{entry['tags_rejected']} | {len(entry['attempts'])} | {note} |"
+        )
+
+    for entry in resolution["plugins"]:
+        if not entry["attempts"]:
+            continue
+        lines += ["", f"<details><summary><code>{entry['package']}</code> — попытки</summary>", ""]
+        for attempt in entry["attempts"]:
+            icon = "✅" if attempt["status"] == "passed" else "❌"
+            reason = f" — {attempt['failed_stage']}: {attempt['detail']}" if attempt["failed_stage"] else ""
+            lines.append(f"- {icon} `{attempt['ref']}`{reason}")
+        lines += ["", "</details>"]
+    return lines

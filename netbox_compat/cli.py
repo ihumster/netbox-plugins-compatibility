@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import ConfigError, load_config
 from .environment import Backends
 from .report import write_job_summary, write_json, write_markdown
+from .resolve import ResolveOptions, run_resolve
 from .runner import MODE_ISOLATED, MODES, RunOptions, run
 from .stages import PASSED
 
@@ -34,6 +35,17 @@ def build_parser() -> argparse.ArgumentParser:
                         help="seconds to wait for /api/status/ to answer")
     parser.add_argument("--keep-workdir", action="store_true", help="keep checkouts and venvs for debugging")
     parser.add_argument("--validate-only", action="store_true", help="validate the config and exit")
+
+    resolve = parser.add_argument_group("resolve mode")
+    resolve.add_argument("--resolve", action="store_true",
+                         help="walk each plugin's tags back until one actually works on the target NetBox")
+    resolve.add_argument("--max-attempts", type=int, default=3,
+                         help="how many eligible refs per plugin to actually run (default: 3)")
+    resolve.add_argument("--include-prereleases", action="store_true",
+                         help="also consider pre-release tags such as 1.7-beta1")
+    resolve.add_argument("--resolved-config", type=Path, default=None,
+                         help="where to write the resolved matrix "
+                              "(default: <output-dir>/compatibility.resolved.yaml)")
     parser.add_argument("--verbose", action="store_true")
 
     group = parser.add_argument_group("backends")
@@ -93,16 +105,38 @@ def main(argv: list[str] | None = None) -> int:
     options.workdir.mkdir(parents=True, exist_ok=True)
     options.output_dir.mkdir(parents=True, exist_ok=True)
 
-    report = run(config, options)
+    if args.resolve:
+        report = run_resolve(
+            config,
+            options,
+            ResolveOptions(
+                max_attempts=args.max_attempts,
+                include_prereleases=args.include_prereleases,
+                resolved_config=(
+                    args.resolved_config.resolve()
+                    if args.resolved_config
+                    else options.output_dir / "compatibility.resolved.yaml"
+                ),
+            ),
+        )
+    else:
+        report = run(config, options)
 
     json_path = write_json(report, options.output_dir / "report.json")
     md_path = write_markdown(report, options.output_dir / "report.md")
     write_job_summary(report)
 
-    totals = report["totals"]
     logging.info("report: %s", json_path)
     logging.info("summary: %s", md_path)
-    logging.info(
-        "result: %s (%d/%d targets passed)", report["status"], totals["passed"], totals["targets"]
-    )
+    if report.get("resolution"):
+        totals = report["resolution"]["totals"]
+        logging.info(
+            "result: %s (%d/%d plugins resolved)",
+            report["status"], totals["resolved"], totals["plugins"],
+        )
+    else:
+        totals = report["totals"]
+        logging.info(
+            "result: %s (%d/%d targets passed)", report["status"], totals["passed"], totals["targets"]
+        )
     return EXIT_OK if report["status"] == PASSED else EXIT_TESTS_FAILED

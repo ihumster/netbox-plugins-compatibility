@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .config import CompatConfig, PluginSpec
+from .config import CompatConfig, NetBoxSpec, PluginSpec
 from .environment import Backends, SourceCache, TargetEnvironment
 from .process import clean_env, run_logged
 from .stages import (
@@ -28,6 +28,7 @@ log = logging.getLogger("netbox_compat")
 MODE_ISOLATED = "isolated"
 MODE_COMBINED = "combined"
 MODE_BOTH = "both"
+MODE_RESOLVE = "resolve"
 MODES = (MODE_ISOLATED, MODE_COMBINED, MODE_BOTH)
 
 COMBINED_TARGET_ID = "all-plugins"
@@ -88,7 +89,7 @@ def _stage_to_dict(stage: StageResult, output_dir: Path) -> dict[str, Any]:
     return payload
 
 
-def run_target(target: Target, config: CompatConfig, options: RunOptions, cache: SourceCache) -> dict[str, Any]:
+def run_target(target: Target, netbox: NetBoxSpec, options: RunOptions, cache: SourceCache) -> dict[str, Any]:
     """Прогнать одну цель. Исключения гасятся здесь: пайплайн не должен падать."""
     started_at = datetime.now(timezone.utc)
     started = time.monotonic()
@@ -124,7 +125,7 @@ def run_target(target: Target, config: CompatConfig, options: RunOptions, cache:
     }
 
     checkout_log = env.log_path("checkout")
-    checkout = cache.checkout(config.netbox, env.source, checkout_log)
+    checkout = cache.checkout(netbox, env.source, checkout_log)
     if not checkout.ok:
         record["stages"] = [
             {
@@ -133,7 +134,7 @@ def run_target(target: Target, config: CompatConfig, options: RunOptions, cache:
                 "returncode": checkout.returncode,
                 "duration_seconds": round(checkout.duration, 1),
                 "log": str(checkout_log.relative_to(options.output_dir)),
-                "detail": f"cannot check out NetBox {config.netbox.ref}",
+                "detail": f"cannot check out NetBox {netbox.ref}",
                 "stderr_tail": checkout.stderr_tail,
             }
         ] + [{"name": name, "status": SKIPPED, "detail": "checkout failed"} for name in STAGE_ORDER]
@@ -216,7 +217,7 @@ def run(config: CompatConfig, options: RunOptions) -> dict[str, Any]:
         len(targets),
     )
 
-    records = [run_target(target, config, options, cache) for target in targets]
+    records = [run_target(target, config.netbox, options, cache) for target in targets]
     passed = sum(1 for record in records if record["status"] == PASSED)
     finished_at = datetime.now(timezone.utc)
 

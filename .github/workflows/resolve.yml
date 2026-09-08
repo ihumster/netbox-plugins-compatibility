@@ -1,0 +1,90 @@
+name: resolve-plugin-versions
+
+# Долгий режим: по каждому плагину перебираются версии до фактически рабочей.
+# Только по требованию — в расписании ему делать нечего.
+on:
+  workflow_dispatch:
+    inputs:
+      max_attempts:
+        description: "Refs actually run per plugin"
+        default: "3"
+      include_prereleases:
+        description: "Consider pre-release tags"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: netbox
+          POSTGRES_PASSWORD: netbox
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U netbox"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libpq-dev
+
+      - name: Install runner dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve working plugin versions
+        run: |
+          python -m netbox_compat \
+            --config compatibility.yaml \
+            --resolve \
+            --max-attempts "${{ inputs.max_attempts }}" \
+            ${{ inputs.include_prereleases && '--include-prereleases' || '' }} \
+            --output-dir reports \
+            --workdir "${RUNNER_TEMP}/netbox-compat"
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: netbox
+          PGPASSWORD: netbox
+          PGDATABASE: postgres
+          REDIS_HOST: localhost
+          REDIS_PORT: "6379"
+
+      - name: Upload resolution report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolution-report
+          path: |
+            reports/report.json
+            reports/report.md
+            reports/compatibility.resolved.yaml
+            reports/logs/
+          if-no-files-found: error
+          retention-days: 30
