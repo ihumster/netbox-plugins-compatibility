@@ -121,7 +121,10 @@ ref'е, поэтому режим работает и когда `netbox.ref` �
 Пре-релизы (`1.7-beta1`, `v4.5.0-rc2`) исключены; вернуть их — `--include-prereleases`.
 
 Результат — секция `resolution` в `report.json`, таблица в `report.md` и файл
-`compatibility.resolved.yaml` в каталоге отчёта:
+`compatibility.resolved.yaml` в каталоге отчёта. В `resolution.plugins[]`
+полные числа лежат в `tags_eligible`/`tags_rejected`, а список
+`rejected_by_declared_bounds` — это образец из первых `--max-attempts` записей,
+чтобы отчёт не раздувался списком из полусотни тегов.
 
 ```yaml
 plugins:
