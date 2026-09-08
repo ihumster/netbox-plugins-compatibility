@@ -1,0 +1,91 @@
+name: plugin-compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        type: choice
+        options: [isolated, combined, both]
+        default: isolated
+  push:
+    paths:
+      - compatibility.yaml
+  schedule:
+    # Понедельник, 04:17 UTC — смещено от :00, чтобы не попадать в пик очередей.
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: netbox
+          POSTGRES_PASSWORD: netbox
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U netbox"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # psycopg[c] из requirements NetBox собирается из исходников.
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libpq-dev
+
+      - name: Install runner dependencies
+        run: pip install -r requirements.txt
+
+      # Вся логика — в раннере; workflow только вызывает его.
+      - name: Run compatibility checks
+        run: |
+          python -m netbox_compat \
+            --config compatibility.yaml \
+            --mode "${{ inputs.mode || 'isolated' }}" \
+            --output-dir reports \
+            --workdir "${RUNNER_TEMP}/netbox-compat"
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: netbox
+          PGPASSWORD: netbox
+          PGDATABASE: postgres
+          REDIS_HOST: localhost
+          REDIS_PORT: "6379"
+
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-report
+          path: |
+            reports/report.json
+            reports/report.md
+            reports/logs/
+          if-no-files-found: error
+          retention-days: 30
