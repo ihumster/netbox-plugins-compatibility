@@ -30,3 +30,8 @@ plugins:
     repository: https://github.com/netboxlabs/netbox-custom-objects.git
     ref: v0.6.1
     package: netbox_custom_objects
+
+  - name: NetBox Lifecycle
+    repository: https://github.com/DanSheps/netbox-lifecycle.git
+    ref: v1.1.6
+    package: netbox_lifecycle
